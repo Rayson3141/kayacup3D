@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kaya Cup 2026 — Arena</title>
+
+  <!-- Chart.js as a global (UMD). Loaded in the user's browser; no build step. -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Resolve the bare "three" import from a CDN, so the site stays static. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg: #0a0d14;
+      --panel: #11161f;
+      --panel-2: #161c27;
+      --border: #232b38;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --cyan: #00d4ff;
+      --green: #00e07f;
+      --red: #ff4560;
+      --gold: #ffd700;
+      --amber: #ffb020;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: radial-gradient(1200px 800px at 50% -10%, #121a26 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: var(--sans);
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr) 340px;
+      gap: 14px;
+      padding: 14px;
+      min-height: 100vh;
+    }
+
+    h1 { font-size: 1.15rem; letter-spacing: 0.04em; margin: 0 0 2px; }
+    .eyebrow { font: 600 0.62rem/1 var(--mono); letter-spacing: 0.22em; color: var(--cyan); text-transform: uppercase; }
+    h3 { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; font-weight: 600; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+
+    /* ---- Sidebar ---- */
+    #sidebar { padding: 16px; overflow-y: auto; max-height: calc(100vh - 28px); }
+    .seg { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 4px; margin-top: 6px; }
+    .seg button {
+      flex: 1; appearance: none; border: 0; border-radius: 6px; padding: 7px 4px;
+      background: transparent; color: var(--muted); font: 600 0.78rem var(--sans); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .seg button.active { background: var(--cyan); color: #04121a; }
+    .seg button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+    .field { margin-top: 12px; }
+    .field > label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #c9d1d9; margin-bottom: 6px; }
+    .val { font: 700 0.78rem var(--mono); color: var(--cyan); }
+    input[type="range"] { width: 100%; accent-color: var(--cyan); }
+    input[type="text"], select {
+      width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 7px; padding: 7px 9px; font: 0.8rem var(--mono);
+    }
+    .hint { font-size: 0.68rem; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+
+    /* Collapsible coefficients panel */
+    details.coeffs { margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+    details.coeffs > summary {
+      cursor: pointer; list-style: none; user-select: none;
+      padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;
+      font: 600 0.72rem var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+      border-radius: 10px;
+    }
+    details.coeffs > summary::-webkit-details-marker { display: none; }
+    details.coeffs > summary::after { content: "▾"; color: var(--cyan); transition: transform 0.2s; }
+    details.coeffs:not([open]) > summary::after { transform: rotate(-90deg); }
+    details.coeffs > summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    details.coeffs > .coeffs-body { padding: 0 12px 12px; }
+    details.coeffs h3 { margin: 12px 0 4px; }
+
+    .legend { font-size: 0.74rem; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px; margin-top: 14px; line-height: 1.5; }
+    .legend b.kaya { color: var(--amber); }
+    .legend b.butter { color: #88ccff; }
+    .legend img { width: 22px; height: 22px; vertical-align: -6px; border-radius: 5px; }
+
+    .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .btn { appearance: none; border: 1px solid var(--border); border-radius: 9px; padding: 11px; font: 700 0.9rem var(--sans); cursor: pointer; color: var(--text); background: var(--panel-2); transition: filter 0.15s; }
+    .btn:hover { filter: brightness(1.15); }
+    #btn-toggle { background: var(--green); color: #042414; border-color: transparent; }
+    #btn-toggle.running { background: var(--red); color: #2a0309; }
+    .btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+    /* ---- Center / arena ---- */
+    #center { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .arena { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: 66vh; margin: 0 auto; border-radius: 14px; overflow: hidden; background: #0a0d14; border: 1px solid var(--border); }
+    #arena2d, #arena3d { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #arena3d canvas { width: 100% !important; height: 100% !important; }
+
+    /* Red vignette — deepens as the player's HP falls */
+    #vignette {
+      position: absolute; inset: 0; pointer-events: none; opacity: 0;
+      transition: opacity 0.35s ease;
+      background: radial-gradient(ellipse at center,
+        rgba(255,0,40,0) 42%,
+        rgba(255,0,40,0.28) 74%,
+        rgba(180,0,30,0.62) 100%);
+    }
+
+    /* Minimap — top-right, only when the 2D view is not active */
+    #minimap {
+      position: absolute; top: 12px; right: 12px; width: 148px; height: 148px;
+      display: none; pointer-events: none;
+      filter: drop-shadow(0 2px 10px rgba(0,0,0,0.55));
+    }
+
+    /* Player HUD — health bar, top-left */
+    #player-hud {
+      position: absolute; top: 12px; left: 12px; display: none;
+      flex-direction: column; gap: 4px; min-width: 220px;
+      background: rgba(10,13,20,0.72); border: 1px solid var(--border);
+      border-radius: 10px; padding: 9px 11px; backdrop-filter: blur(4px);
+    }
+    #player-hud .row { display: flex; justify-content: space-between; align-items: baseline; }
+    #hud-name { font: 700 0.82rem var(--mono); color: #fff; }
+    #hud-hp { font: 700 0.78rem var(--mono); color: var(--muted); }
+    #hud-track { height: 10px; border-radius: 5px; background: #2a3140; overflow: hidden; }
+    #hud-fill { height: 100%; width: 100%; background: var(--green); border-radius: 5px; transition: width 0.2s, background 0.2s; }
+
+    /* Faint controls hint */
+    #controls-hint {
+      position: absolute; bottom: 14px; left: 0; right: 0; display: none;
+      text-align: center; pointer-events: none;
+      font: 600 0.74rem var(--mono); letter-spacing: 0.08em;
+      color: rgba(230,237,243,0.38); text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+
+    /* Overlay */
+    .overlay { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+    #overlay-count { display: none; font: 900 6rem var(--sans); text-shadow: 0 4px 30px rgba(0,0,0,0.7); }
+    #overlay-count.pop { animation: pop 0.45s ease-out; }
+    @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    #overlay-alert { position: absolute; top: 16%; left: 0; right: 0; text-align: center; opacity: 0; transform: translateY(-8px) scale(0.92); transition: opacity .25s, transform .25s; }
+    #overlay-alert.show { opacity: 1; transform: translateY(0) scale(1); }
+    #alert-title { font: 900 2.3rem var(--sans); color: var(--red); text-shadow: 0 2px 0 #000, 0 0 24px rgba(255,69,96,0.5); }
+    #alert-sub { font: 600 0.95rem var(--mono); color: #fff; margin-top: 4px; }
+
+    /* Mobile controls — joystick only; drift is the only control there is */
+    #mobile-controls { display: none; position: absolute; inset: auto 0 0 0; justify-content: flex-start; align-items: flex-end; padding: 18px; pointer-events: none; }
+    #joystick-base { position: relative; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,0.06); border: 1px solid var(--border); pointer-events: auto; touch-action: none; }
+    #joystick-knob { position: absolute; left: 35px; top: 35px; width: 40px; height: 40px; border-radius: 50%; background: var(--cyan); opacity: 0.85; }
+
+    /* Ticker */
+    #ticker { padding: 12px 14px; }
+    #ticker-title { font: 600 0.7rem var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; }
+    #ticker-box { height: 132px; overflow-y: auto; font: 0.78rem/1.55 var(--mono); }
+    .log-entry { padding: 1px 0; }
+
+    /* ---- Dashboard ---- */
+    #dashboard { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .time-banner { padding: 12px 14px; font: 700 0.95rem var(--mono); color: var(--cyan); text-align: center; }
+    .chart-wrap { padding: 12px; height: 230px; }
+    .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+    .table-wrap { padding: 12px 14px; flex: 1; overflow-y: auto; max-height: 40vh; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font: 600 0.66rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+    th:last-child { text-align: right; }
+    td.hp-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    td.hp-cell span { font: 700 0.78rem var(--mono); min-width: 26px; text-align: right; }
+    .hp-track { flex: 0 0 64px; height: 7px; border-radius: 4px; background: #2a3140; overflow: hidden; }
+    .hp-fill { height: 100%; border-radius: 4px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #overlay-count.pop, #overlay-alert, #vignette, #hud-fill { animation: none !important; transition: none !important; }
+    }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width: 1080px) {
+      body { grid-template-columns: 1fr; }
+      #sidebar { max-height: none; }
+      .arena { max-height: 70vh; }
+      #minimap { width: 110px; height: 110px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside id="sidebar" class="panel">
+    <div class="eyebrow">Live arena · 2026</div>
+    <h1>🏆 Kaya Cup</h1>
+
+    <h3>View</h3>
+    <div class="seg">
+      <button data-view="3d" class="active">3D follow</button>
+      <button data-view="2d">2D top-down</button>
+    </div>
+
+    <h3>Mode</h3>
+    <div class="seg">
+      <button data-mode="spectate" class="active">Spectate</button>
+      <button data-mode="play">Play</button>
+    </div>
+
+    <div id="player-row" class="field" style="display:none;">
+      <label>You control</label>
+      <select id="player-select"></select>
+      <div class="hint"><b>WASD</b> steers your fighter's drift (up/left/down/right); the <b>arrow keys</b> orbit&nbsp;(←&nbsp;→) and tilt&nbsp;(↑&nbsp;↓) the 3D camera. The arena's Brownian jitter still applies to you like everyone else, and all combat is automatic.</div>
+    </div>
+
+    <div class="field">
+      <label>Seed <span class="val" style="color:var(--muted)">reproducible</span></label>
+      <input type="text" id="seed-input" value="kaya" spellcheck="false" />
+      <div class="hint">Same seed + settings replays an identical spectated tournament (if loaded strategies are deterministic).</div>
+    </div>
+
+    <h3>Field</h3>
+    <div class="field">
+      <label>Contestants <span class="val" id="val-qty">20</span></label>
+      <input type="range" id="param-qty" min="2" max="20" value="20" step="1" />
+    </div>
+    <div class="field">
+      <label>Speed <span class="val" id="val-speed">1x</span></label>
+      <input type="range" id="param-speed" min="0.25" max="3" value="1" step="0.25" />
+    </div>
+
+    <details class="coeffs" open>
+      <summary>Coefficients</summary>
+      <div class="coeffs-body">
+        <h3>Diffusion</h3>
+        <div class="field">
+          <label>σ (movement) <span class="val" id="val-sigma">0.20</span></label>
+          <input type="range" id="param-sigma" min="0" max="1" value="0.2" step="0.05" />
+        </div>
+
+        <h3>Fights</h3>
+        <div class="field">
+          <label>r (fight radius) <span class="val" id="val-r">0.25</span></label>
+          <input type="range" id="param-r" min="0.01" max="0.5" value="0.25" step="0.01" />
+        </div>
+        <div class="field">
+          <label>λ (fight rate) <span class="val" id="val-lam">5.0</span></label>
+          <input type="range" id="param-lam" min="0.1" max="10" value="5" step="0.1" />
+        </div>
+
+        <h3>Recovery</h3>
+        <div class="field">
+          <label>r′ (boundary band) <span class="val" id="val-rPrime">0.15</span></label>
+          <input type="range" id="param-rPrime" min="0.01" max="0.5" value="0.15" step="0.01" />
+        </div>
+        <div class="field">
+          <label>β (recovery rate) <span class="val" id="val-beta">2.0</span></label>
+          <input type="range" id="param-beta" min="0.1" max="5" value="2" step="0.1" />
+        </div>
+      </div>
+    </details>
+
+    <div class="legend">
+      <img src="assets/kaya.png" alt="Kaya" /> <b class="kaya">Kaya</b> — demon cat, deals damage nearby.<br>
+      <b class="butter">🐶 Butter</b> — healer dog, mends fighters below 50 HP.<br>
+      <span class="hint">NPCs have no HP; they roam and affect whoever is close. Fighters marked 🧠 run a strategy file from <code>strategies/</code>.</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="btn-toggle">🚀  Start tournament</button>
+      <button class="btn" id="btn-reset">🔄  Reset</button>
+    </div>
+  </aside>
+
+  <!-- ================= CENTER ================= -->
+  <main id="center">
+    <div class="arena panel">
+      <div id="arena3d"></div>
+      <canvas id="arena2d" style="display:none;"></canvas>
+
+      <div id="vignette"></div>
+      <canvas id="minimap"></canvas>
+
+      <div id="player-hud">
+        <div class="row"><span id="hud-name">—</span><span id="hud-hp">100 HP</span></div>
+        <div id="hud-track"><div id="hud-fill"></div></div>
+      </div>
+
+      <div id="controls-hint">WASD move · &larr;&rarr;&uarr;&darr; camera</div>
+
+      <div class="overlay">
+        <div id="overlay-count"></div>
+        <div id="overlay-alert"><div id="alert-title"></div><div id="alert-sub"></div></div>
+      </div>
+
+      <div id="mobile-controls">
+        <div id="joystick-base"><div id="joystick-knob"></div></div>
+      </div>
+    </div>
+
+    <div id="ticker" class="panel">
+      <div id="ticker-title">📡 Live report from the battlefield</div>
+      <div id="ticker-box"></div>
+    </div>
+  </main>
+
+  <!-- ================= DASHBOARD ================= -->
+  <aside id="dashboard">
+    <div class="time-banner panel" id="timer">Tournament time: 0.0s</div>
+    <div class="chart-wrap panel"><canvas id="hpChart"></canvas></div>
+    <div class="table-wrap panel">
+      <h3 style="margin-top:0;">👑 Championship ranking</h3>
+      <table id="leaderboard">
+        <thead><tr><th>#</th><th>Name</th><th>HP</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </aside>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

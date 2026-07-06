@@ -1,0 +1,651 @@
+\documentclass[11pt]{article}
+
+\usepackage[expansion=false]{microtype}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!55!black, citecolor=blue!45!black,
+  urlcolor=blue!55!black}
+
+\allowdisplaybreaks
+
+% Custom step list
+\newlist{steps}{enumerate}{1}
+\setlist[steps]{label=\textbf{Step~\arabic*.}, leftmargin=2.4em,
+                labelsep=0.55em, itemsep=6pt, topsep=5pt, parsep=2pt}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem*{remark}{Remark}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\HP}{\mathrm{HP}}
+\newcommand{\rlim}{r_{\mathrm{lim}}}
+\newcommand{\vmax}{v_{\max}}
+\newcommand{\z}{\mathbf{z}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\x}{\mathbf{x}}
+\newcommand{\normal}{\mathcal{N}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\title{\textbf{A Mean-Field Gradient-Flow Strategy for the Kaya Cup 2026}\\[4pt]
+\large Mathematical Justification}
+\author{Strategy design notes}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We formalise the Kaya Cup as a controlled jump--diffusion on the unit disk and
+derive, from the exact game mechanics, a movement policy of the form
+$\vv = \Pi_{\|\vv\|\le \vmax}\!\big(-\nabla E(\z)\big)$ --- projected gradient
+flow on a physically motivated energy $E$. Each term of $E$ is obtained from a
+governing mechanic: the fight coefficient from the win law, the danger and
+healing terms from Poisson event rates, the length scales from a heat-semigroup
+(diffusion) expansion, and the crowd term from a mean-field empirical measure.
+We prove the exact results (fight expectation, steepest-ascent optimality,
+Gaussian-convolution length inflation, Lyapunov descent) and cite the standard
+theorems used for the approximations (HJB verification, Feynman--Kac, LaSalle,
+laws of large numbers for empirical measures, mean-field games). We close with a
+proposition showing that \emph{no} admissible policy attains win probability
+one, which delimits precisely what "optimality" can mean here.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%======================================================================
+\section{The game as a controlled jump--diffusion}
+%======================================================================
+
+\begin{definition}[State and dynamics]\label{def:state}
+Fix $N$ players on the closed unit disk $\bar D=\{\z\in\R^2:\|\z\|\le 1\}$.
+Player $i$ has position $\z_i(t)\in\bar D$ and health $H_i(t)\in[0,100]$. Writing
+$\z=\z_i$ for the focal player and $\vv=\vv_i$ for the velocity it chooses
+(the \emph{control}, constrained to $\|\vv\|\le\vmax$ with $\vmax=1.2$), the
+position evolves as the reflected It\^o diffusion
+\begin{equation}\label{eq:sde}
+  d\z(t) \;=\; \vv(t)\,dt \;+\; \sigma\, dW(t) \;+\; d\boldsymbol{\ell}(t),
+  \qquad \z(0)\in\bar D,
+\end{equation}
+where $W$ is a standard planar Brownian motion, $\sigma>0$ is the diffusion
+coefficient, and $\boldsymbol{\ell}$ is the boundary local-time term enforcing
+$\z\in\bar D$ \cite{Oksendal}. Health $H_i$ is a pure-jump process driven by
+independent Poisson clocks (Section~\ref{sec:flux}). The time step is
+$\Delta t=0.05$; \eqref{eq:sde} is its diffusive scaling limit, since the
+per-step increment $\normal(0,1)\,\sigma\sqrt{\Delta t}$ has covariance
+$\sigma^2\Delta t\,I_2$.
+\end{definition}
+
+\begin{definition}[Objective]\label{def:obj}
+Let $T^\ast=\inf\{t: \#\{i:H_i(t)>0\}\le 1\}$ be the end of the tournament. The
+focal player seeks a control maximising the win probability
+\begin{equation}\label{eq:objective}
+  J^\star(\z,H,\cdots) \;=\; \sup_{\vv(\cdot)}\ \Prob\big[\,i \text{ is the last survivor at } T^\ast\,\big].
+\end{equation}
+\end{definition}
+
+The randomness is genuinely irreducible: fights are Bernoulli, the NPC and
+combat clocks are Poisson, and $\sigma\,dW$ is uncontrolled. Section~\ref{sec:noguarantee}
+makes the consequence precise. The remainder builds a tractable, mechanically
+faithful surrogate for \eqref{eq:objective}.
+
+\newpage
+%======================================================================
+\section{Dynamic programming and its intractability}
+%======================================================================
+
+\begin{theorem}[HJB verification for controlled diffusions
+{\cite[Ch.~III]{FlemingSoner}}]\label{thm:hjb}
+Let the full state be $s=(\z_1,H_1,\dots,\z_N,H_N)$ with controlled generator
+$\mathcal L^{\vv}$. If the value function $V$ of \eqref{eq:objective} is
+sufficiently regular, it satisfies the Hamilton--Jacobi--Bellman equation
+\begin{equation}\label{eq:hjb}
+  0 \;=\; \sup_{\|\vv\|\le\vmax}\Big\{\, \vv\cdot\nabla_{\z}V
+  \;+\; \tfrac{\sigma^2}{2}\,\Delta_{\z}V \;+\; \mathcal J V \,\Big\},
+\end{equation}
+where $\tfrac{\sigma^2}{2}\Delta_{\z}$ is the diffusion generator of
+\eqref{eq:sde} and $\mathcal J$ collects the jump (fight/NPC/recovery) terms.
+Conversely, a smooth solution of \eqref{eq:hjb} with the correct terminal data
+equals $V$, and the maximiser $\vv^\ast(s)=\vmax\,\nabla_\z V/\|\nabla_\z V\|$ is
+an optimal feedback control.
+\end{theorem}
+
+\begin{remark}
+Two structural facts of \eqref{eq:hjb} survive into the final policy regardless
+of the intractability below: (i) the control enters \emph{only} through the
+linear term $\vv\cdot\nabla_\z V$, so the optimal velocity is always aligned
+with a gradient and saturates the speed cap (Lemma~\ref{lem:steepest}); (ii) the
+second-order operator $\tfrac{\sigma^2}{2}\Delta$ is what couples the present
+decision to the diffusive future, and is the origin of the anticipation length
+scale of Section~\ref{sec:anticipation}.
+\end{remark}
+
+The state $s$ lives in $(\bar D\times[0,100])^N$; for $N=20$ this is an
+$80$-dimensional space and \eqref{eq:hjb} is subject to the curse of
+dimensionality \cite{Bertsekas}. We therefore replace $V$ by a
+\emph{potential surrogate} $-E$ built from one-step expected rewards, i.e. a
+myopic (greedy / one-step rollout) approximation \cite[Ch.~6]{Bertsekas}, and
+recover the strategic content lost by myopia through an explicit shaping term
+(Section~\ref{sec:aggression}). Sections~\ref{sec:fight}--\ref{sec:flux}
+construct the exact one-step reward.
+
+\newpage
+%======================================================================
+\section{Exact fight microdynamics}\label{sec:fight}
+%======================================================================
+
+\begin{lemma}[Expected fight increment and the advantage coefficient]
+\label{lem:fight}
+Suppose players $i,j$ fight. Player $i$ wins with probability
+$p_i=\dfrac{H_i}{H_i+H_j}$ and the loser forfeits $1$ HP. Then
+\begin{equation}\label{eq:fightexp}
+  \E[\Delta H_i \mid \text{fight}] \;=\; -\,\frac{H_j}{H_i+H_j},
+  \qquad
+  \E[\Delta H_i-\Delta H_j \mid \text{fight}] \;=\; \frac{H_i-H_j}{H_i+H_j}\;=:\;s_{ij}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+$\Delta H_i=0$ if $i$ wins (probability $p_i$) and $\Delta H_i=-1$ if $i$ loses
+(probability $p_j=\tfrac{H_j}{H_i+H_j}$), so
+$\E[\Delta H_i\mid\text{fight}]=-p_j=-\tfrac{H_j}{H_i+H_j}$. Symmetrically
+$\E[\Delta H_j\mid\text{fight}]=-p_i$, and subtracting gives
+$p_i-p_j=\tfrac{H_i-H_j}{H_i+H_j}$.
+\end{proof}
+
+\begin{remark}[Interpretation]
+$s_{ij}\in(-1,1)$ is the \emph{expected relative HP swing per exchange}. It is
+positive exactly when $i$ is the healthier of the two: attrition under the win
+law is self-reinforcing (the leader loses HP more slowly than the trailer). This
+single quantity determines whether a neighbour is prey ($s_{ij}>0$, attract) or
+predator ($s_{ij}<0$, repel), and it is the coefficient of the pairwise force in
+\eqref{eq:energy}. Note $\E[\Delta H_i\mid\text{fight}]\le 0$ always: no fight is
+ever, in isolation, health-positive --- the tension resolved in
+Section~\ref{sec:aggression}.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{Instantaneous expected health flux}\label{sec:flux}
+%======================================================================
+
+Each interaction fires on an independent Poisson clock: player--player fights at
+rate $\lambda$ while within $\rlim$, Kaya at rate $\lambda_K=2$, Butter at rate
+$\lambda_B=1$ (only if $H<50$), and boundary recovery at rate $\beta$ (only if
+$H\le 25$ and $\|\z\|\ge 1-r'$). The discrete probabilities $1-e^{-\rho\Delta t}$
+in the rules are exactly the event probabilities of a rate-$\rho$ Poisson process
+on a step of length $\Delta t$ \cite{Kingman}.
+
+\begin{lemma}[Health drift]\label{lem:flux}
+Conditional on the current configuration, the instantaneous drift of the focal
+player's health, $b_H(\z):=\lim_{\Delta t\downarrow0}\Delta t^{-1}\E[\Delta H]$, is
+\begin{equation}\label{eq:flux}
+\begin{aligned}
+  b_H(\z) \;=\; J(\z) :=\;
+  &-\,\lambda \sum_{j\ne i} \mathbf 1_{\{\|\z-\z_j\|<\rlim\}}\,\frac{H_j}{H+H_j}
+   \;-\; \lambda_K\,\mathbf 1_{\{\|\z-\z_K\|<\rlim\}} \\
+  &+\,\lambda_B\,\mathbf 1_{\{\|\z-\z_B\|<\rlim\}}\mathbf 1_{\{H<50\}}
+   \;+\; \beta\,\mathbf 1_{\{H\le 25\}}\mathbf 1_{\{\|\z\|\ge 1-r'\}} .
+\end{aligned}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By the superposition theorem for independent Poisson processes \cite{Kingman},
+the pooled event stream is Poisson with rate equal to the sum of the active
+rates. Over $[0,\Delta t]$ the expected number of events of type $k$ with rate
+$\rho_k$ is $\rho_k\Delta t+o(\Delta t)$, and the probability of two or more
+events is $o(\Delta t)$. Multiplying each active rate by the expected HP
+increment of that event --- $-H_j/(H+H_j)$ for a fight with $j$ by
+Lemma~\ref{lem:fight}, $-1$ for Kaya, $+1$ for Butter, $+1$ for recovery ---
+summing, dividing by $\Delta t$ and letting $\Delta t\downarrow0$ yields
+\eqref{eq:flux}.
+\end{proof}
+
+\begin{remark}[Smoothing]
+$J$ is discontinuous through the indicators $\mathbf 1_{\{\|\z-a\|<\rlim\}}$. For
+a gradient policy we use mollified kernels $K_\ell(\z-a)=\exp(-\|\z-a\|^2/2\ell^2)$;
+Section~\ref{sec:anticipation} shows this is not an ad hoc convenience but the
+exact effect of averaging over the diffusive future, and it fixes $\ell$.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{The steepest-ascent policy}\label{sec:policy}
+%======================================================================
+
+\begin{lemma}[Constrained steepest ascent]\label{lem:steepest}
+Let $g\in\R^2$, $g\ne 0$, and $c>0$. Then
+\[
+  \argmax_{\|\vv\|\le c}\ \langle g,\vv\rangle \;=\; \frac{c\,g}{\|g\|},
+  \qquad \max_{\|\vv\|\le c}\ \langle g,\vv\rangle = c\|g\|,
+\]
+and the maximiser is unique.
+\end{lemma}
+
+\begin{proof}
+By the Cauchy--Schwarz inequality $\langle g,\vv\rangle\le\|g\|\,\|\vv\|\le c\|g\|$.
+Equality in Cauchy--Schwarz holds iff $\vv=\alpha g$ for some $\alpha\ge 0$, and
+the cap forces $\|\vv\|=c$, i.e.\ $\alpha=c/\|g\|$. Uniqueness is the strictness
+of Cauchy--Schwarz off the ray $\R_{\ge0}\,g$.
+\end{proof}
+
+\begin{definition}[Energy and policy]\label{def:policy}
+Define the energy
+\begin{equation}\label{eq:energy}
+  E(\z) \;=\; \underbrace{-\,J(\z)}_{\text{expected loss}}
+  \;+\; \underbrace{E_{\mathrm{crowd}}(\z)}_{\text{mean field, \S\ref{sec:meanfield}}}
+  \;+\; \underbrace{E_{\mathrm{home}}(\z)}_{\text{radial camp, \S\ref{sec:stability}}}
+  \;-\; \underbrace{g_{\mathrm{end}}\,\Phi_{\mathrm{prey}}(\z)}_{\text{shaping, \S\ref{sec:aggression}}},
+\end{equation}
+with $J$ mollified as above, and set the feedback control
+\begin{equation}\label{eq:proj}
+  \vv(\z)\;=\;\Pi_{\|\vv\|\le\vmax}\!\big(-\nabla E(\z)\big)
+  \;=\;\begin{cases} -\,\vmax\,\dfrac{\nabla E(\z)}{\|\nabla E(\z)\|}, & \nabla E(\z)\ne 0,\\[4pt] 0,&\text{else.}\end{cases}
+\end{equation}
+\end{definition}
+
+\begin{proposition}[The policy is one-step optimal for the health surrogate]
+\label{prop:greedy}
+Among all admissible velocities, \eqref{eq:proj} with $E=-J$ maximises the
+instantaneous expected rate of change of $J$ along the induced motion,
+$\frac{d}{dt}J(\z(t))\big|_{\text{drift}}=\langle\nabla J,\vv\rangle$.
+\end{proposition}
+
+\begin{proof}
+By the chain rule the drift contribution of the control to $J(\z(t))$ is
+$\langle\nabla J(\z),\vv\rangle$. Apply Lemma~\ref{lem:steepest} with
+$g=\nabla J=-\nabla E$ and $c=\vmax$: the maximiser is
+$\vmax\nabla J/\|\nabla J\|=-\vmax\nabla E/\|\nabla E\|$, which is \eqref{eq:proj}.
+\end{proof}
+
+\begin{remark}
+This is exactly the optimal-feedback form $\vv^\ast=\vmax\nabla V/\|\nabla V\|$ of
+Theorem~\ref{thm:hjb} with the intractable value $V$ replaced by the tractable
+one-step surrogate $J$ (and its shaping correction). Summing per-term gradients
+$-\nabla E=\sum_k(-\nabla E_k)$ realises the "force field": each named force is
+the negative gradient of one potential well, so their vector sum \emph{is}
+$-\nabla E$.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{Diffusion as anticipation: the length scale}\label{sec:anticipation}
+%======================================================================
+
+Why mollify $J$ with a kernel of a \emph{specific} width? Because the decision at
+$\z$ is exposed to the diffusive displacement of \eqref{eq:sde} before it can
+act again. Averaging a potential over that displacement is a heat semigroup.
+
+\begin{theorem}[Heat semigroup / Feynman--Kac {\cite[Ch.~4--5]{KaratzasShreve}, \cite[Ch.~2]{Evans}}]
+\label{thm:heat}
+Let $Z_\tau=\z+\sigma W_\tau$ be the (uncontrolled) diffusion started at $\z$ and
+let $U$ be bounded measurable. Then $u(\tau,\z):=\E[U(Z_\tau)]$ solves the heat
+equation $\partial_\tau u=\tfrac{\sigma^2}{2}\Delta u$, $u(0,\cdot)=U$, and is
+given by convolution with the Gaussian heat kernel,
+\[
+  \E[U(Z_\tau)]\;=\;\big(G_{\sigma^2\tau}\ast U\big)(\z),
+  \qquad G_{s^2}(\x)=\tfrac{1}{2\pi s^2}\exp\!\big(-\|\x\|^2/2s^2\big).
+\]
+\end{theorem}
+
+\begin{lemma}[Gaussian convolution: variances add]\label{lem:gauss}
+For $a,s>0$ in $\R^2$, $\;G_{a^2}\ast G_{s^2}=G_{a^2+s^2}$.
+\end{lemma}
+
+\begin{proof}
+The Fourier transform of $G_{a^2}$ is $\widehat{G_{a^2}}(\xi)=e^{-a^2\|\xi\|^2/2}$.
+Convolution becomes multiplication under $\widehat{\ \cdot\ }$, so
+$\widehat{G_{a^2}\ast G_{s^2}}=e^{-a^2\|\xi\|^2/2}e^{-s^2\|\xi\|^2/2}
+=e^{-(a^2+s^2)\|\xi\|^2/2}=\widehat{G_{a^2+s^2}}$. Injectivity of the Fourier
+transform gives the claim \cite[Ch.~8]{Folland}.
+\end{proof}
+
+\begin{corollary}[Anticipation inflates the interaction radius]\label{cor:length}
+Model a danger/interaction zone of native radius $\rlim$ by a Gaussian well
+$U(\z)=G_{\rlim^2}(\z-a)$ (up to scale). Its diffusive average over a horizon
+$\tau$ is, by Theorem~\ref{thm:heat} and Lemma~\ref{lem:gauss},
+\[
+  \E[U(Z_\tau)] \;=\; \big(G_{\sigma^2\tau}\ast G_{\rlim^2}\big)(\z-a)
+  \;=\; G_{\,\ell^2}(\z-a),\qquad
+  \boxed{\;\ell=\sqrt{\rlim^{2}+\sigma^{2}\tau}\;}.
+\]
+\end{corollary}
+
+\begin{remark}[Implementation and the small-time expansion]
+With a horizon of $\tau=\tau_{\mathrm{steps}}\Delta t$, the inflated scale is
+$\ell=\sqrt{\rlim^2+\sigma^2\tau_{\mathrm{steps}}\Delta t}$, i.e.\ the code's
+$\ell^2=\rlim^2+(\sigma\sqrt{\Delta t}\,\sqrt{\tau_{\mathrm{steps}}})^2$. To first
+order, It\^o/Taylor gives
+$\E[U(Z_\tau)]=U(\z)+\tfrac{\sigma^2\tau}{2}\Delta U(\z)+o(\tau)$ \cite{Oksendal},
+reproducing the $\tfrac{\sigma^2}{2}\Delta$ term of the HJB
+equation~\eqref{eq:hjb}: the widening is the leading diffusive correction to the
+myopic value. Practically, the player begins avoiding Kaya and stronger rivals
+\emph{before} contact, because diffusion may close the gap within the horizon.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{The crowd term as a mean field}\label{sec:meanfield}
+%======================================================================
+
+\begin{definition}[Empirical measure and crowd potential]
+Let $\mu_N=\frac1N\sum_{j=1}^N\delta_{\z_j}$ be the empirical measure of player
+positions and, for a short-range repulsive kernel $W\ge0$,
+\begin{equation}\label{eq:crowd}
+  E_{\mathrm{crowd}}(\z)\;=\;(W\ast\mu_N)(\z)\;=\;\frac1N\sum_{j=1}^N W(\z-\z_j).
+\end{equation}
+\end{definition}
+
+\begin{theorem}[Convergence of empirical measures {\cite{Varadarajan}}]
+\label{thm:lln}
+If $\z_1,\z_2,\dots$ are i.i.d.\ with law $\mu$ on a separable metric space, then
+almost surely $\mu_N\to\mu$ weakly as $N\to\infty$. Consequently, for bounded
+continuous $W(\z-\cdot)$,
+$\;E_{\mathrm{crowd}}(\z)=\int W(\z-y)\,d\mu_N(y)\to\int W(\z-y)\,d\mu(y)$ a.s.
+\end{theorem}
+
+\begin{remark}[Mean-field scaling and best response]
+The $1/N$ normalisation is the mean-field scaling that keeps
+$E_{\mathrm{crowd}}=O(1)$ as the field grows, so no single decision is dominated
+by raw crowd size; only the \emph{local density} $\int_{\|\z-y\|\lesssim\rlim}d\mu_N$
+matters, which is what \eqref{eq:crowd} measures. Choosing $\vv=-\nabla E$ against
+the population density $\mu_N$ is precisely a \emph{best response to the mean
+field}; the fixed point in which every player best-responds to the induced
+density is the Nash concept of mean-field games \cite{LasryLions,HuangMalhameCaines},
+whose $N\to\infty$ justification is propagation of chaos \cite{Sznitman}. Players
+here are neither i.i.d.\ nor exchangeable at all times, so
+Theorem~\ref{thm:lln} is invoked as a modelling approximation, not an exact law;
+its role is to justify the functional form \eqref{eq:crowd} and the $1/N$ weight.
+Behaviourally, $E_{\mathrm{crowd}}$ repels the player from clusters, where
+concurrent duels inflate the variance of $\sum_j\Delta H$ and invite being
+ganged.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{Gradient-flow stability and the camp}\label{sec:stability}
+%======================================================================
+
+\begin{theorem}[Lyapunov descent and LaSalle {\cite{Khalil,LaSalle}}]
+\label{thm:lasalle}
+Along the (uncapped) gradient flow $\dot\z=-\nabla E(\z)$ on the compact set
+$\bar D$ with $E\in C^1$, the energy is nonincreasing,
+$\frac{d}{dt}E(\z(t))=-\|\nabla E(\z(t))\|^2\le0$. Every trajectory converges to
+the largest invariant subset of the critical set $\{\nabla E=0\}$; if the critical
+points are isolated, trajectories converge to a single critical point.
+\end{theorem}
+
+\begin{proof}
+$\frac{d}{dt}E(\z)=\langle\nabla E,\dot\z\rangle=-\|\nabla E\|^2\le0$, so $E$ is a
+Lyapunov function. $\bar D$ is compact and $E$ continuous, hence sublevel sets are
+compact; LaSalle's invariance principle \cite{LaSalle} gives convergence to the
+largest invariant set inside $\{\dot E=0\}=\{\nabla E=0\}$.
+\end{proof}
+
+\begin{remark}[Capped flow]
+Under the projected flow \eqref{eq:proj},
+$\frac{d}{dt}E=\langle\nabla E,\vv\rangle=-\vmax\|\nabla E\|\le0$ whenever
+$\nabla E\ne0$, so descent and the LaSalle conclusion persist; the cap changes
+speed, not monotonicity.
+\end{remark}
+
+\begin{proposition}[Stable camp radius]\label{prop:camp}
+Let the radial part of $E_{\mathrm{home}}$ be $\varphi(r)=\tfrac12 w\,(r-r^\ast)^2$
+with $w>0$, $r=\|\z\|$. Then $r=r^\ast$ is the unique critical radius and it is
+asymptotically stable for the radial flow $\dot r=-\varphi'(r)$.
+\end{proposition}
+
+\begin{proof}
+$\varphi'(r)=w(r-r^\ast)$ vanishes only at $r=r^\ast$, and
+$\varphi''(r^\ast)=w>0$, so $r^\ast$ is a strict local (indeed global) minimum of
+$\varphi$; by Theorem~\ref{thm:lasalle} applied to the scalar flow, $r(t)\to r^\ast$.
+\end{proof}
+
+\begin{remark}[Why the boundary]
+The angular dynamics are governed by $E_{\mathrm{crowd}}$, which spreads players
+apart along the ring $r=r^\ast$; the radial dynamics pin them near the rim. The
+choice $r^\ast$ just inside the recovery band $\{r\ge1-r'\}$ is deliberate: area
+grows like $r$, so a boundary camp has fewer expected neighbours (hence, by
+Lemma~\ref{lem:flux}, less negative fight flux) than the interior, while keeping
+the recovery region one step away. When $H$ falls, $r^\ast$ is shifted into the
+band and $w$ is increased $\propto\beta$, committing the player to healing; this
+is a state-dependent deformation of the same convex well, preserving
+Proposition~\ref{prop:camp}. The full $E$ is nonconvex (each rival adds a well),
+so only \emph{local} stability is claimed --- consistent with a game whose global
+configuration is adversarial.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{The finite-horizon aggression schedule}\label{sec:aggression}
+%======================================================================
+
+Lemma~\ref{lem:fight} showed every fight has $\E[\Delta H\mid\text{fight}]\le0$;
+a strictly health-greedy player (the surrogate $E=-J$ alone) therefore never
+initiates combat. Yet the terminal objective \eqref{eq:objective} rewards being
+\emph{last}, which requires others to reach $0$. The shaping term
+$-g_{\mathrm{end}}\Phi_{\mathrm{prey}}$ restores this, with
+\begin{equation}\label{eq:prey}
+  \Phi_{\mathrm{prey}}(\z)=\sum_{j:\,s_{ij}>0} s_{ij}\,K_\ell(\z-\z_j)\,g_{\mathrm{HP}}\,\mathrm{iso}_j,
+\end{equation}
+an attractor toward weak ($s_{ij}>0$), isolated ($\mathrm{iso}_j$ small-crowd)
+prey, active only when the player is healthy ($g_{\mathrm{HP}}$). The gate
+$g_{\mathrm{end}}\in[0,1]$ increases as the field empties.
+
+\begin{proposition}[Vanishing option value of waiting]\label{prop:wait}
+Let $k(t)$ be the number of living players and suppose among the $k-1$ opponents
+combat eliminations arrive at aggregate rate $\Lambda_{\mathrm{opp}}(k)$ with
+$\Lambda_{\mathrm{opp}}(2)=0$ and $\Lambda_{\mathrm{opp}}$ increasing in $k$.
+Then the expected number of ``free'' opponent-deaths obtained by a passive player
+over a short horizon $h$ is $\Lambda_{\mathrm{opp}}(k)\,h+o(h)$, which is
+increasing in $k$ and vanishes at $k=2$.
+\end{proposition}
+
+\begin{proof}
+Free deaths accrue as a counting process with intensity
+$\Lambda_{\mathrm{opp}}(k)$; its expected increment over $[0,h]$ is
+$\Lambda_{\mathrm{opp}}(k)h+o(h)$ \cite{Kingman}. Monotonicity in $k$ and the
+boundary value $\Lambda_{\mathrm{opp}}(2)=0$ are the hypotheses.
+\end{proof}
+
+\begin{remark}[Reading the schedule]
+Proposition~\ref{prop:wait} formalises the trade-off: when many rivals remain,
+the field culls itself for free, so paying HP to attack is wasteful and
+$g_{\mathrm{end}}\!\approx\!0$ (patient camping is near-optimal). As $k\downarrow2$
+the free-death rate $\to0$; the only path to the terminal reward is to spend a
+little HP closing on the weakest survivor, so $g_{\mathrm{end}}\to1$. The schedule
+$g_{\mathrm{end}}(k)$ is thus a monotone interpolation, the myopically-invisible
+part of the value function reinstated by rollout reasoning \cite[Ch.~6]{Bertsekas}.
+Simulation over $10^2$ tournaments corroborates the qualitative claim: a small
+\emph{persistent} predation baseline (culling weak isolated rivals) outperforms
+strict pacifism, because it shrinks the survivor pool faster than it costs HP,
+while heavy early aggression underperforms.
+\end{remark}
+
+\newpage
+%======================================================================
+\section{No policy guarantees a win}\label{sec:noguarantee}
+%======================================================================
+
+\begin{proposition}[Irreducible elimination risk]\label{prop:noguarantee}
+Fix any horizon $T>0$ and any admissible feedback controls for all players
+($\|\vv_i\|\le\vmax<\infty$). While at least two players remain, each player is
+eliminated with strictly positive probability by time $T$; in particular no
+admissible policy attains win probability $1$.
+\end{proposition}
+
+\begin{proof}
+The reflected diffusion \eqref{eq:sde} on the compact domain $\bar D$ has, for
+each $t>0$, a transition density that is bounded below by a strictly positive
+Gaussian-type kernel, uniformly on $\bar D$ (Aronson's lower bound for uniformly
+parabolic operators \cite{Aronson}). A bounded drift $\vv$, $\|\vv\|\le\vmax$,
+only reweights this density by a factor bounded away from $0$ (Girsanov
+\cite{KaratzasShreve}), so it cannot annihilate any positive-probability event.
+Hence with positive probability two given players occupy the same
+$\rlim$-neighbourhood on a time interval of positive length. Conditioned on that,
+the fight clock (rate $\lambda>0$) fires at least once with probability
+$1-e^{-\lambda\cdot(\text{dwell})}>0$ \cite{Kingman}, and by Lemma~\ref{lem:fight}
+the focal player loses that exchange with probability
+$H_j/(H_i+H_j)\in(0,1)$. Chaining these positive-probability events shows
+$\Prob[\Delta H_i<0 \text{ on }[0,T]]>0$; iterating over the finite HP budget gives
+$\Prob[\text{$i$ eliminated by }T]>0$ for $T$ large enough. Therefore
+$\Prob[i\text{ wins}]\le 1-\Prob[i\text{ eliminated}]<1$.
+\end{proof}
+
+\begin{remark}
+Proposition~\ref{prop:noguarantee} is the precise sense in which ``guarantee a
+win'' is unattainable: the uncontrolled diffusion has full support on a compact
+arena, so no amount of steering removes the possibility of a losing encounter.
+The design goal is therefore correctly stated as \emph{maximising win
+probability}, which is what the surrogate $-E$ and its shaping term target, and
+what the simulations measure (a $6$--$7\times$ uplift over the uniform baseline
+$1/N$).
+\end{remark}
+
+\newpage
+%======================================================================
+\section{Intuition: reading the energy as behaviour}\label{sec:intuition}
+%======================================================================
+
+Each mathematical term corresponds to a legible instinct; the policy is their
+vector sum $-\nabla E$, capped at $\vmax$.
+
+\begin{itemize}[leftmargin=1.5em,itemsep=5pt]
+\item \textbf{Fear Kaya (repulsion).} Kaya is a moving Gaussian danger well
+(Lemma~\ref{lem:flux}); its force pushes radially away, amplified by a
+marginal-value-of-HP factor $\varphi(H)$ that grows as $H\to0$, because near
+elimination the survival value function is steep --- one HP is worth more when
+you have few.
+
+\item \textbf{Duel selectively (signed attraction).} The coefficient $s_{ij}$
+of Lemma~\ref{lem:fight} makes healthier-than-me rivals repel and weaker-isolated
+ones (mildly) attract: fight only the fights the win law makes favourable, and
+flee the rest.
+
+\item \textbf{Avoid crowds (mean field).} $E_{\mathrm{crowd}}$ (\S\ref{sec:meanfield})
+keeps the player out of dense clusters, where simultaneous duels create ruinous
+HP variance.
+
+\item \textbf{Heal when wounded (conditional attraction).} Butter attracts only
+while $H<50$ and in proportion to the healable deficit $(50-H)_+$; below $25$ the
+radial term commits the player into the boundary recovery band with strength
+$\propto\beta$.
+
+\item \textbf{Camp the rim (stable equilibrium).} The radial well
+(Proposition~\ref{prop:camp}) parks the player just inside the boundary --- fewest
+neighbours, healing adjacent --- while crowd repulsion spreads campers around the
+ring.
+
+\item \textbf{Anticipate the noise (length scale).} Every interaction radius is
+inflated to $\ell=\sqrt{\rlim^2+\sigma^2\tau}$ (Corollary~\ref{cor:length}), so
+the player reacts to where diffusion \emph{could} put it, not only where it is.
+
+\item \textbf{Finish late (finite-horizon shaping).} While many remain, wait and
+let the field thin itself (Proposition~\ref{prop:wait}); as the count falls to two,
+turn aggressor and close on the weakest survivor.
+\end{itemize}
+
+\vspace{0.5em}
+The composite is a patient, boundary-hugging survivor that dodges the cat and the
+strong, tops up its health when low, quietly removes weak stragglers, and turns
+killer only when the arithmetic of being ``last'' finally demands it.
+
+\newpage
+%======================================================================
+\section*{Summary of results}
+\addcontentsline{toc}{section}{Summary of results}
+%======================================================================
+
+\renewcommand{\arraystretch}{1.35}
+\begin{center}
+\begin{tabular}{@{}p{0.30\textwidth}p{0.34\textwidth}p{0.30\textwidth}@{}}
+\hline
+\textbf{Result} & \textbf{Statement} & \textbf{Main tool} \\
+\hline
+Thm.~\ref{thm:hjb} (HJB) &
+control enters via $\vv\cdot\nabla V$; optimum saturates cap along a gradient &
+DPP + verification \cite{FlemingSoner} \\
+Lem.~\ref{lem:fight} (fights) &
+$\E[\Delta H_i\mid\text{fight}]=-\tfrac{H_j}{H_i+H_j}$, advantage $s_{ij}$ &
+elementary expectation \\
+Lem.~\ref{lem:flux} (flux) &
+health drift $J(\z)$ from pooled Poisson rates &
+Poisson superposition \cite{Kingman} \\
+Lem.~\ref{lem:steepest} (ascent) &
+$\argmax_{\|\vv\|\le c}\langle g,\vv\rangle=c\,g/\|g\|$ &
+Cauchy--Schwarz \\
+Thm.~\ref{thm:heat}, Cor.~\ref{cor:length} &
+$\ell=\sqrt{\rlim^2+\sigma^2\tau}$ (anticipation) &
+heat semigroup \cite{KaratzasShreve}, Gaussian convolution \\
+Thm.~\ref{thm:lln} (mean field) &
+$\mu_N\to\mu$; $1/N$ crowd scaling &
+LLN for empirical measures \cite{Varadarajan} \\
+Thm.~\ref{thm:lasalle}, Prop.~\ref{prop:camp} &
+gradient flow descends $E$; stable camp radius &
+Lyapunov / LaSalle \cite{Khalil,LaSalle} \\
+Prop.~\ref{prop:wait} (schedule) &
+free-death rate $\to0$ as $k\to2$ &
+counting-process intensity \\
+Prop.~\ref{prop:noguarantee} &
+no policy wins with probability $1$ &
+Aronson bound \cite{Aronson}, Girsanov \\
+\hline
+\end{tabular}
+\end{center}
+
+%======================================================================
+\begin{thebibliography}{99}
+\bibitem{FlemingSoner} W.~H.~Fleming and H.~M.~Soner,
+  \emph{Controlled Markov Processes and Viscosity Solutions}, 2nd ed.,
+  Springer, 2006.
+\bibitem{Oksendal} B.~\O ksendal,
+  \emph{Stochastic Differential Equations}, 6th ed., Springer, 2003.
+\bibitem{KaratzasShreve} I.~Karatzas and S.~E.~Shreve,
+  \emph{Brownian Motion and Stochastic Calculus}, 2nd ed., Springer, 1991.
+\bibitem{Evans} L.~C.~Evans,
+  \emph{Partial Differential Equations}, 2nd ed., AMS, 2010.
+\bibitem{Folland} G.~B.~Folland,
+  \emph{Real Analysis: Modern Techniques and Their Applications}, 2nd ed.,
+  Wiley, 1999.
+\bibitem{Kingman} J.~F.~C.~Kingman,
+  \emph{Poisson Processes}, Oxford University Press, 1993.
+\bibitem{Bertsekas} D.~P.~Bertsekas,
+  \emph{Dynamic Programming and Optimal Control}, Vols.~I--II, Athena
+  Scientific, 2017.
+\bibitem{Varadarajan} V.~S.~Varadarajan,
+  On the convergence of sample probability distributions,
+  \emph{Sankhy\=a} \textbf{19} (1958), 23--26.
+\bibitem{LasryLions} J.-M.~Lasry and P.-L.~Lions,
+  Mean field games, \emph{Japanese J.~Math.} \textbf{2} (2007), 229--260.
+\bibitem{HuangMalhameCaines} M.~Huang, R.~P.~Malham\'e and P.~E.~Caines,
+  Large-population stochastic dynamic games: closed-loop McKean--Vlasov systems
+  and the Nash certainty equivalence principle,
+  \emph{Commun.~Inf.~Syst.} \textbf{6} (2006), 221--251.
+\bibitem{Sznitman} A.-S.~Sznitman,
+  Topics in propagation of chaos, in \emph{\'Ecole d'\'Et\'e de Probabilit\'es
+  de Saint-Flour XIX}, LNM~1464, Springer, 1991, 165--251.
+\bibitem{Khalil} H.~K.~Khalil,
+  \emph{Nonlinear Systems}, 3rd ed., Prentice Hall, 2002.
+\bibitem{LaSalle} J.~P.~LaSalle,
+  Some extensions of Liapunov's second method,
+  \emph{IRE Trans.~Circuit Theory} \textbf{7} (1960), 520--527.
+\bibitem{Aronson} D.~G.~Aronson,
+  Bounds for the fundamental solution of a parabolic equation,
+  \emph{Bull.~Amer.~Math.~Soc.} \textbf{73} (1967), 890--896.
+\end{thebibliography}
+
+\end{document}
