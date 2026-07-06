@@ -49,7 +49,7 @@ export class Minimap {
     return "#00e07f";
   }
 
-  render(sim) {
+  render(sim, cone = null) {
     const { ctx } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const s = this.size;
@@ -65,6 +65,25 @@ export class Minimap {
     ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.arc(cx, cy, R * (1 - sim.params.rPrime), 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
+
+    // Camera viewing cone from the player's dot (drawn under the dots).
+    if (cone) {
+      const px = cx + cone.x * R, py = cy + cone.y * R;
+      const len = R * 0.55;
+      const base = Math.atan2(cone.fy, cone.fx); // canvas angle (x right, y down)
+      const a1 = base - cone.half, a2 = base + cone.half;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, len);
+      grad.addColorStop(0, "rgba(0,212,255,0.32)");
+      grad.addColorStop(1, "rgba(0,212,255,0)");
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.arc(px, py, len, a1, a2);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,212,255,0.55)"; ctx.lineWidth = 1;
+      ctx.stroke();
+    }
 
     // Fighters.
     for (const c of sim.contestants) {

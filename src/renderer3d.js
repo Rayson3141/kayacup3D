@@ -32,15 +32,24 @@ export class Renderer3D {
     this._initScene();
   }
 
-  // Integrate arrow-key camera intent (rates in [-1,1]) over dtFrames (~1 per
-  // 60fps frame). Called by main each frame while playing.
-  orbit(yawInput, pitchInput, dtFrames = 1) {
-    const YAW_RATE = 0.045, PITCH_RATE = 0.03;
-    this.orbitYaw += (yawInput || 0) * YAW_RATE * dtFrames;
-    this.orbitPitch += (pitchInput || 0) * PITCH_RATE * dtFrames;
-    // Keep tilt between near-eye-level and near-overhead.
-    if (this.orbitPitch < 0.06) this.orbitPitch = 0.06;
-    if (this.orbitPitch > 1.35) this.orbitPitch = 1.35;
+  // Camera forward / right unit vectors projected onto the arena floor, in
+  // engine coordinates (x, y) where world z = engine y. Derived analytically
+  // from the orbit azimuth. Used for camera-relative WASD and the minimap cone.
+  //   forward = ( sin θ,  cos θ )   (the "into the screen" direction)
+  //   right   = (-cos θ,  sin θ )   (screen-right)
+  groundBasis() {
+    const y = this.orbitYaw;
+    return {
+      fwd:   { x: Math.sin(y), y: Math.cos(y) },
+      right: { x: -Math.cos(y), y: Math.sin(y) },
+    };
+  }
+
+  // Horizontal half-FOV (radians) for the minimap viewing cone.
+  halfFovH() {
+    const fovV = (this.camera.fov * Math.PI) / 180;
+    const aspect = this.camera.aspect || 1;
+    return Math.atan(Math.tan(fovV / 2) * aspect);
   }
 
   _initScene() {

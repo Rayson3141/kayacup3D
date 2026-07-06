@@ -160,13 +160,21 @@ class Game {
   }
 
   // Convert keyboard/joystick intent into a world-space drift for the engine.
-  // WASD is world-absolute in BOTH views: W = up (−y), S = down (+y),
-  // A = left (−x), D = right (+x). The 3D camera is steered separately by the
-  // arrow keys, so movement direction no longer depends on the camera.
+  //   3D view: WASD is CAMERA-RELATIVE — W drives the fighter in the direction
+  //            the camera faces, A/D strafe relative to the view, so movement
+  //            follows wherever the arrow keys have aimed the camera.
+  //   2D view: WASD is world-absolute (W = up on the top-down map).
   _playerInput() {
     if (this.mode !== MODE.PLAY) return null;
-    let mx = this.input.strafe;   // +x right / −x left
-    let my = -this.input.fwd;     // −y up / +y down
+    const fwd = this.input.fwd, strafe = this.input.strafe;
+    let mx, my;
+    if (this.view === VIEW.THREE_D) {
+      const b = this.r3d.groundBasis();
+      mx = b.right.x * strafe + b.fwd.x * fwd;
+      my = b.right.y * strafe + b.fwd.y * fwd;
+    } else {
+      mx = strafe; my = -fwd;
+    }
     const mag = Math.hypot(mx, my);
     if (mag > 1) { mx /= mag; my /= mag; }
     return { move: { x: mx, y: my } };
@@ -226,7 +234,15 @@ class Game {
     const opts = { mode: this.mode };
     if (this.view === VIEW.THREE_D) {
       this.r3d.render(this.sim, this.fx, opts);
-      this.minimap.render(this.sim);
+      // In play mode, tell the minimap where the camera is looking so it can
+      // draw a viewing cone from the player's dot.
+      let cone = null;
+      const p = this.sim.player;
+      if (this.mode === MODE.PLAY && p && p.hp > 0) {
+        const b = this.r3d.groundBasis();
+        cone = { x: p.x, y: p.y, fx: b.fwd.x, fy: b.fwd.y, half: this.r3d.halfFovH() };
+      }
+      this.minimap.render(this.sim, cone);
     } else {
       this.r2d.render(this.sim, this.fx, opts);
     }
