@@ -52,6 +52,17 @@ export class Renderer3D {
     return Math.atan(Math.tan(fovV / 2) * aspect);
   }
 
+  // Integrate arrow-key camera intent (rates in [-1,1]) over dtFrames (~1 per
+  // 60fps frame). Called by main each frame while playing.
+  orbit(yawInput, pitchInput, dtFrames = 1) {
+    const YAW_RATE = 0.045, PITCH_RATE = 0.03;
+    this.orbitYaw += (yawInput || 0) * YAW_RATE * dtFrames;
+    this.orbitPitch += (pitchInput || 0) * PITCH_RATE * dtFrames;
+    // Keep tilt between near-eye-level and near-overhead.
+    if (this.orbitPitch < 0.06) this.orbitPitch = 0.06;
+    if (this.orbitPitch > 1.35) this.orbitPitch = 1.35;
+  }
+
   _initScene() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#0a0d14");
